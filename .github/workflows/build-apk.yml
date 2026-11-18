@@ -1,3 +1,4 @@
+
 name: Build Watch8 Manager PairFix APK
 
 on:
@@ -15,8 +16,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Always apply the uploaded bugfix ZIP, even if the repository also
-      # contains Gradle source files from an older revision.
       - name: Extract latest OneUpload source
         shell: bash
         run: |
@@ -26,12 +25,11 @@ jobs:
             echo "Applying pair-fix source: $archive"
             unzip -oq "$archive" -d .
           elif [[ -f Watch8_System_Manager_V2_OneUpload.zip ]]; then
-            echo 'Using legacy V2 ZIP (upgrade recommended)'
             unzip -oq Watch8_System_Manager_V2_OneUpload.zip -d .
           elif [[ -f settings.gradle && -f app/build.gradle ]]; then
             echo 'Building existing repository sources'
           else
-            echo 'ERROR: Upload the PairFix OneUpload ZIP to the repository root.'
+            echo 'ERROR: Source ZIP not found'
             exit 1
           fi
           test -f settings.gradle
@@ -49,12 +47,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install required Android SDK 35
+      - name: Verify preinstalled Android SDK 35
+        shell: bash
         run: |
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+          set -euo pipefail
+          echo "Using preinstalled Android SDK: $ANDROID_HOME"
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
