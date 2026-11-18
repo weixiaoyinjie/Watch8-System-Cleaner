@@ -13,8 +13,19 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Extract Android project from ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f settings.gradle ] || [ ! -f app/build.gradle ]; then
+            unzip -o -q Watch8_System_Cleaner_V1_OneUpload.zip 'app/*' build.gradle settings.gradle gradle.properties -d .
+          fi
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -23,9 +34,7 @@ jobs:
           java-version: '17'
 
       - name: Verify Android SDK 35
-        shell: bash
         run: |
-          set -euo pipefail
           test -f "$ANDROID_HOME/platforms/android-35/android.jar"
           test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
 
