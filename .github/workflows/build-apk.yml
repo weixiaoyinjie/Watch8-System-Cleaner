@@ -1,4 +1,4 @@
-name: Build Watch8 Manager V2.3 CryptoAlign APK
+name: Build Watch8 Manager V2.4 CryptoDeps APK
 
 on:
   workflow_dispatch:
@@ -15,17 +15,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract V2.3 CryptoAlign ZIP (required)
+      - name: Extract V2.4 source ZIP
         shell: bash
         run: |
           set -euo pipefail
-          archive=Watch8_System_Manager_V2_3_CryptoAlign_OneUpload.zip
-          test -f "$archive" || { echo "ERROR: Upload $archive to repository root"; exit 1; }
+          archive=Watch8_System_Manager_V2_4_CryptoDeps_OneUpload.zip
+          test -f "$archive" || { echo "ERROR: Upload $archive to repository root first"; exit 1; }
           unzip -oq "$archive" -d .
-          grep -Fq "versionName '2.3.0'" app/build.gradle
-          grep -Fq "bcprov-jdk15to18:1.81" app/build.gradle
-          grep -Fq "bcpkix-jdk15to18:1.81" app/build.gradle
-          grep -Fq "bcutil-jdk15to18:1.81" app/build.gradle
+          grep -Fq "versionName '2.4.0'" app/build.gradle
+          for module in bcprov bcpkix bcutil; do
+            grep -Fq "${module}-jdk18on:1.81" app/build.gradle
+          done
           test -f tools/verify_apk_crypto.py
           test -f app/src/main/java/com/watch8/cleaner/AdbIdentity.java
 
@@ -51,27 +51,33 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Show resolved Bouncy Castle dependencies
+      - name: Check resolved ADB encryption dependencies
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:dependencies --configuration debugRuntimeClasspath > /tmp/watch8_deps.txt
-          grep -E 'bouncycastle:|libadb-android' /tmp/watch8_deps.txt || true
-          for lib in bcprov bcpkix bcutil; do
-            grep -q "org.bouncycastle:${lib}-jdk15to18:1.81" /tmp/watch8_deps.txt || {
-              echo "ERROR: Missing aligned Bouncy Castle ${lib} 1.81"; exit 1;
+          gradle --no-daemon :app:dependencies --configuration debugRuntimeClasspath > /tmp/watch8-deps.txt
+          grep -E 'bouncycastle:|libadb-android' /tmp/watch8-deps.txt || true
+          if grep -E 'org\.bouncycastle:.*FAILED' /tmp/watch8-deps.txt; then
+            echo 'ERROR: Bouncy Castle dependency could not be resolved'; exit 1
+          fi
+          for module in bcprov bcpkix bcutil; do
+            grep -Fq "org.bouncycastle:${module}-jdk18on:1.81" /tmp/watch8-deps.txt || {
+              echo "ERROR: Required ${module}-jdk18on:1.81 missing"; exit 1;
             }
           done
+          if grep -E 'org\.bouncycastle:.*-jdk15to18:' /tmp/watch8-deps.txt; then
+            echo 'ERROR: conflicting Bouncy Castle jdk15to18 artifact detected'; exit 1
+          fi
 
-      - name: Clean build and compile phone debug APK
+      - name: Clean build phone APK
         run: gradle --no-daemon --stacktrace :app:clean :app:assembleDebug
 
-      - name: Verify ADB certificate and native libraries inside APK
+      - name: Verify packaged ADB crypto and arm64 libraries
         run: python3 tools/verify_apk_crypto.py app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload V2.3 phone APK
+      - name: Upload V2.4 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Watch8-Manager-V2.3-CryptoAlign-Phone-APK
+          name: Watch8-Manager-V2.4-CryptoDeps-Phone-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
