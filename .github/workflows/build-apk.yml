@@ -1,4 +1,4 @@
-name: Build Watch8 Manager V2.5 PackagingFix APK
+name: Build Watch8 Manager V2.6 Chinese Icons APK
 
 on:
   workflow_dispatch:
@@ -19,15 +19,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          archive=Watch8_System_Manager_V2_5_PackagingFix_OneUpload.zip
+          archive=Watch8_System_Manager_V2_6_ChineseIcons_OneUpload.zip
           test -f "$archive" || { echo "ERROR: Upload $archive to repository root first"; exit 1; }
           unzip -oq "$archive" -d .
-          grep -Fq "versionName '2.5.0'" app/build.gradle
+          grep -Fq "versionName '2.6.0'" app/build.gradle
           for module in bcprov bcpkix bcutil; do
             grep -Fq "${module}-jdk18on:1.81" app/build.gradle
           done
           test -f tools/verify_apk_crypto.py
           test -f app/src/main/java/com/watch8/cleaner/AdbIdentity.java
+          test -f app/src/main/java/com/watch8/cleaner/RemoteIconStore.java
+          grep -Fq 'query-activities --brief --components' app/src/main/java/com/watch8/cleaner/PackageScanner.java
           grep -Fq 'META-INF/versions/**' app/build.gradle
 
       - name: Set up JDK 17
@@ -76,9 +78,9 @@ jobs:
       - name: Verify packaged ADB crypto and arm64 libraries
         run: python3 tools/verify_apk_crypto.py app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload V2.5 debug APK
+      - name: Upload V2.6 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Watch8-Manager-V2.5-PackagingFix-Phone-APK
+          name: Watch8-Manager-V2.6-ChineseIcons-Phone-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
