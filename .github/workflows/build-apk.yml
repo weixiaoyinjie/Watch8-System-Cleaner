@@ -1,4 +1,4 @@
-name: Build Watch8 Manager V2.2 CryptoFix APK
+name: Build Watch8 Manager V2.3 CryptoAlign APK
 
 on:
   workflow_dispatch:
@@ -15,17 +15,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract V2.2 CryptoFix ZIP (required)
+      - name: Extract V2.3 CryptoAlign ZIP (required)
         shell: bash
         run: |
           set -euo pipefail
-          archive=Watch8_System_Manager_V2_2_CryptoFix_OneUpload.zip
-          test -f "$archive" || { echo "ERROR: Upload $archive to repository root first"; exit 1; }
+          archive=Watch8_System_Manager_V2_3_CryptoAlign_OneUpload.zip
+          test -f "$archive" || { echo "ERROR: Upload $archive to repository root"; exit 1; }
           unzip -oq "$archive" -d .
-          grep -Fq "versionName '2.2.0'" app/build.gradle
-          grep -Fq "bcutil-jdk15to18:1.78.1" app/build.gradle
+          grep -Fq "versionName '2.3.0'" app/build.gradle
+          grep -Fq "bcprov-jdk15to18:1.81" app/build.gradle
+          grep -Fq "bcpkix-jdk15to18:1.81" app/build.gradle
+          grep -Fq "bcutil-jdk15to18:1.81" app/build.gradle
           test -f tools/verify_apk_crypto.py
-          test -f app/src/main/java/com/watch8/cleaner/MainActivity.java
+          test -f app/src/main/java/com/watch8/cleaner/AdbIdentity.java
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -33,13 +35,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Do not use android-actions/setup-android@v3 here: it attempts the
-      # obsolete SDK package named "tools" and fails with exit code 1.
-      - name: Ensure Android SDK 35 is installed
+      - name: Ensure preinstalled Android SDK 35
         shell: bash
         run: |
           set -euo pipefail
-          echo "SDK directory: ${ANDROID_HOME:-not set}"
           if [[ ! -f "$ANDROID_HOME/platforms/android-35/android.jar" || \
                 ! -x "$ANDROID_HOME/build-tools/35.0.0/aapt2" ]]; then
             sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
@@ -52,15 +51,27 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build phone debug APK
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Show resolved Bouncy Castle dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:dependencies --configuration debugRuntimeClasspath > /tmp/watch8_deps.txt
+          grep -E 'bouncycastle:|libadb-android' /tmp/watch8_deps.txt || true
+          for lib in bcprov bcpkix bcutil; do
+            grep -q "org.bouncycastle:${lib}-jdk15to18:1.81" /tmp/watch8_deps.txt || {
+              echo "ERROR: Missing aligned Bouncy Castle ${lib} 1.81"; exit 1;
+            }
+          done
 
-      - name: Verify ADB crypto classes and native libraries packaged
+      - name: Clean build and compile phone debug APK
+        run: gradle --no-daemon --stacktrace :app:clean :app:assembleDebug
+
+      - name: Verify ADB certificate and native libraries inside APK
         run: python3 tools/verify_apk_crypto.py app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload phone APK
+      - name: Upload V2.3 phone APK
         uses: actions/upload-artifact@v4
         with:
-          name: Watch8-Manager-V2.2-CryptoFix-Phone-APK
+          name: Watch8-Manager-V2.3-CryptoAlign-Phone-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
