@@ -1,4 +1,4 @@
-name: Build Watch8 Manager V2.6 Chinese Icons APK
+name: Build Watch8 Manager V2.7 Auto Icons APK
 
 on:
   workflow_dispatch:
@@ -15,14 +15,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract V2.5 source ZIP
+      - name: Extract V2.7 source ZIP
         shell: bash
         run: |
           set -euo pipefail
-          archive=Watch8_System_Manager_V2_6_ChineseIcons_OneUpload.zip
+          archive=Watch8_System_Manager_V2_7_AutoIcons_OneUpload.zip
           test -f "$archive" || { echo "ERROR: Upload $archive to repository root first"; exit 1; }
           unzip -oq "$archive" -d .
-          grep -Fq "versionName '2.6.0'" app/build.gradle
+          grep -Fq "versionName '2.7.0'" app/build.gradle
           for module in bcprov bcpkix bcutil; do
             grep -Fq "${module}-jdk18on:1.81" app/build.gradle
           done
@@ -78,9 +78,24 @@ jobs:
       - name: Verify packaged ADB crypto and arm64 libraries
         run: python3 tools/verify_apk_crypto.py app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload V2.6 debug APK
+      - name: Verify V2.7 desktop and icon UI in the built APK
+        shell: bash
+        run: |
+          python3 - <<'PYVERIFY'
+          import zipfile
+          apk = 'app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(apk) as archive:
+              dex = b''.join(archive.read(n) for n in archive.namelist()
+                             if n.startswith('classes') and n.endswith('.dex'))
+          for required in ['桌面应用', 'V2.7 自动图标版', '读取更多真实图标']:
+              if required.encode('utf-8') not in dex:
+                  raise SystemExit('ERROR: V2.7 UI string missing: ' + required)
+          print('PASS: V2.7 desktop and auto icon UI included')
+          PYVERIFY
+
+      - name: Upload V2.7 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Watch8-Manager-V2.6-ChineseIcons-Phone-APK
+          name: Watch8-Manager-V2.7-AutoIcons-Phone-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
