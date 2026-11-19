@@ -32,6 +32,27 @@ jobs:
           grep -Fq 'query-activities --brief --components' app/src/main/java/com/watch8/cleaner/PackageScanner.java
           grep -Fq 'META-INF/versions/**' app/build.gradle
 
+          # Fix two Java errors in the previously uploaded V2.7 source archive.
+          python3 - <<'PYHOTFIX'
+          from pathlib import Path
+          adb = Path('app/src/main/java/com/watch8/cleaner/WatchAdb.java')
+          src = adb.read_text(encoding='utf-8')
+          if 'import java.io.FileOutputStream;' not in src:
+              assert 'import java.io.FileInputStream;' in src
+              src = src.replace('import java.io.FileInputStream;',
+                                'import java.io.FileInputStream;\nimport java.io.FileOutputStream;', 1)
+              adb.write_text(src, encoding='utf-8')
+          icons = Path('app/src/main/java/com/watch8/cleaner/RemoteIconStore.java')
+          src = icons.read_text(encoding='utf-8')
+          if 'app.roundIcon' in src:
+              src = src.replace('app.icon != 0 || app.roundIcon != 0',
+                                'app.icon != 0')
+              icons.write_text(src, encoding='utf-8')
+          assert 'import java.io.FileOutputStream;' in adb.read_text(encoding='utf-8')
+          assert 'app.roundIcon' not in icons.read_text(encoding='utf-8')
+          print('PASS: Applied V2.7 compile hotfix')
+          PYHOTFIX
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
